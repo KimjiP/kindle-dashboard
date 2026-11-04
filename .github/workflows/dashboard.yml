@@ -1,0 +1,69 @@
+# Draws the dashboard, encrypts it, and publishes it with GitHub Pages. The Kindle starts it
+# before each update, every 15 minutes (see kindle/dashboard.sh).
+# Only encrypted files are published: the image shows calendar events, and this repo is public.
+# There are two versions: dashboard.enc, and dashboard-charge.enc with a "please charge" bar,
+# which the Kindle downloads instead when its battery is low.
+name: Dashboard
+
+# No schedule: GitHub ran the 15-minute one only twice in a day, and it turns scheduled
+# workflows off after 60 days without a commit, which would also stop the Kindle's runs.
+on:
+  push:
+    branches: [main]  # so an edit to todo.md shows up right away
+  workflow_dispatch:  # how the Kindle starts it. Also adds a "Run workflow" button in the Actions tab.
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Draw the dashboard
+        run: python render.py
+        env:
+          CALENDAR_URL: ${{ secrets.CALENDAR_URL }}
+          STOPS: ${{ secrets.STOPS }}    # which stop and lines: secrets, so where you live stays private
+          ROUTES: ${{ secrets.ROUTES }}
+
+      - name: Encrypt it
+        env:
+          DASHBOARD_KEY: ${{ secrets.DASHBOARD_KEY }}
+        run: |
+          # Never publish a plain image: stop if the key is missing.
+          if [ -z "$DASHBOARD_KEY" ]; then echo "The DASHBOARD_KEY secret is not set."; exit 1; fi
+          mkdir -p site
+          # No -pbkdf2, so older OpenSSL on the Kindle can decrypt it. OpenSSL warns about that.
+          # That's fine here: the key is 64 random hex characters, not a guessable password.
+          for name in dashboard dashboard-charge; do
+            openssl enc -aes-256-cbc -md sha256 -salt -pass env:DASHBOARD_KEY -in "$name.png" -out "site/$name.enc"
+          done
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

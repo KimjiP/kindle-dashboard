@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+.DS_Store
+.env
+dashboard.key
+github.token
+dashboard.png
+dashboard-charge.png
+kindle/room/
