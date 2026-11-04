@@ -1,7 +1,5 @@
 # Kindle E-ink Dashboard: Project Brief
 
-Paste this into Claude Code (or save it as `CLAUDE.md` in a new repo).
-
 ## Goal
 
 Turn my jailbroken Kindle into a wall/desk e-ink dashboard for home.
